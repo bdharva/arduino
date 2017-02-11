@@ -1,9 +1,7 @@
-#include "pitches.h"
-
 int ledPin = 5;
-int butPin = 7;
-int buzPin = 9;
-int potPin1 = 15;
+int butPin = 12;
+int buzPin = 10;
+int potPin1 = 14;
 int potPin2 = 16;
 
 int frequency = 0;

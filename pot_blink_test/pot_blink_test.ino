@@ -1,13 +1,13 @@
 #include "pitches.h"
 
-int potPin1 = 1;
+int potPin1 = 14;
 int potPin2 = 2;
 int ledPin = 13;
 int inPin = 7;
 int val1 = 0;
 int val2 = 0;
 int val3 = 0;
-int buzzerPin = 9;
+int buzzerPin = 10;
 int derp = 0;
 int counter = 0;
 

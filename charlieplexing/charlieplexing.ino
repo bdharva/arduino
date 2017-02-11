@@ -1,68 +1,51 @@
-#define LED_A 4
-#define LED_B 5
-#define LED_C 6
+#define LED_A 3
+#define LED_B 4
+#define LED_C 5
+#define LED_D 6
 
-int interval = 1001;
-int count = 0;
+#define BUZ 10
+#define BTN 12
+#define POT 14
+
+int highs[] = { LED_A, LED_B, LED_C, LED_D, LED_A, LED_B, LED_C, LED_D, LED_A, LED_B, LED_C, LED_D };
+int lows[] = { LED_B, LED_A, LED_D, LED_C, LED_C, LED_D, LED_A, LED_B, LED_D, LED_C, LED_B, LED_A };
+
+int target = 0;
 
 void setup() {
   
   pinMode(LED_A, INPUT);
   pinMode(LED_B, INPUT);
   pinMode(LED_C, INPUT);
+  pinMode(LED_D, INPUT);
+
+  pinMode(BUZ, OUTPUT);
+  pinMode(BTN, INPUT);
+  pinMode(POT, INPUT);
 
 }
 
 void loop()
 {
-  // run through a sample loop, lighting each LED
-
-  if(count >= interval && interval > 1) {
-    count = 0;
-    reset_pins();
-    delay(interval);
-    interval = interval-100;
+  if (digitalRead(BTN) == LOW) {
+    if (target < 11) { target += 1; }
+    else { target = 0; }
   }
-
-  // in turn and holding for half a second.
-  set_pins(LED_A, LED_B);
-  count = count + 1;
-  delay(1);
-
-  set_pins(LED_B, LED_A);
-  count = count + 1;
-  delay(1);
-
-  set_pins(LED_C, LED_A); 
-  count = count + 1;
-  delay(1);
-
-  set_pins(LED_A, LED_C);
-  count = count + 1;
-  delay(1);
-
-  set_pins(LED_B, LED_C);
-  count = count + 1;
-  delay(1);
-
-  set_pins(LED_C, LED_B);
-  count = count + 1;
-  delay(1);
-
+  set_pins(target);
 }
 
-void set_pins(int high_pin, int low_pin)
+void set_pins(int target)
 {
   // reset all the pins
   reset_pins();
 
   // set the high and low pins to output
-  pinMode(high_pin, OUTPUT);
-  pinMode(low_pin, OUTPUT);
+  pinMode(highs[target], OUTPUT);
+  pinMode(lows[target], OUTPUT);
 
   // set high pin to logic high, low to logic low
-  digitalWrite(high_pin, HIGH);
-  digitalWrite(low_pin,LOW);
+  digitalWrite(highs[target], HIGH);
+  digitalWrite(lows[target],LOW);
 }
 
 void reset_pins()
@@ -71,8 +54,10 @@ void reset_pins()
   pinMode(LED_A, INPUT); 
   pinMode(LED_B, INPUT);
   pinMode(LED_C, INPUT);
+  pinMode(LED_D, INPUT);
 
   digitalWrite(LED_A, LOW);
   digitalWrite(LED_B, LOW);
   digitalWrite(LED_C, LOW);
+  digitalWrite(LED_D, LOW);
 }

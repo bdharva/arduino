@@ -1,6 +1,7 @@
-#define LED_A 4
-#define LED_B 5
-#define LED_C 6
+#define LED_A 3
+#define LED_B 4
+#define LED_C 5
+#define LED_D 6
 #define BUT_A 7
 #define BUZ_A 9
 #define POT_A 15
