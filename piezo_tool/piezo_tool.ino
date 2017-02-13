@@ -13,6 +13,10 @@ Updated: Saturday, February 11, 2017
 
 */
 
+// Debug Scaffolding
+
+#define DEBUG 1
+
 // Pins
 
 #define LED_A 3
@@ -22,7 +26,7 @@ Updated: Saturday, February 11, 2017
 
 #define BUZ 10
 #define BTN 12
-#define POT 14
+#define POT 0
 
 // Buzzer state machine variables
 
@@ -111,6 +115,9 @@ int pitch_1, pitch_1_vol, pitch_1_dur, pitch_1_gap;
 int pitch_2, pitch_2_vol, pitch_2_dur, pitch_2_gap;
 int loops;
 
+unsigned long waiting = 0;
+unsigned long waited = 1000;
+
 /*
 SETUP() FUNCTION
 Set all LED pins to INPUT (high impedance), button and potentiometer to input,
@@ -127,6 +134,10 @@ void setup() {
   pinMode(BUZ, OUTPUT);
   pinMode(POT, INPUT);
 
+  #ifdef DEBUG
+  Serial.begin(9600);
+  #endif
+
 }
 
 /*
@@ -139,13 +150,31 @@ void loop() {
 
   current_micros = micros();
   current_millis = millis();
-  current_pot = analogRead(POT);
+  /*current_pot = analogRead(POT);
   button_state();
   if (current_pot != last_pot || btn_pressed || btn_pressed_long) {
     ui_state();
   }
   buzzer_state();
-  last_pot = current_pot;
+  last_pot = current_pot;*/
+  for (int i = 0; i < sizeof(pitches); i++) {
+    #ifdef DEBUG
+    Serial.println(pitches[i]);
+    #endif
+    int frequency = map(pitches[i], 0, 1023, 2, 10);
+    float period = 1000/2*frequency; // Gives on/off period in microseconds
+    float duty_on = period/2;
+    float duty_off = period/2;
+
+    for (int j = 0; j < 200; j++) {
+      analogWrite(BUZ, 255);
+      delayMicroseconds(duty_on);
+      analogWrite(BUZ, 0);
+      delayMicroseconds(duty_off);
+    }
+    delay(200);
+    
+  }
 
 }
 
