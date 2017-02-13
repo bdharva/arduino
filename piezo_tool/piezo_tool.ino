@@ -235,6 +235,7 @@ void ui_state() {
       set_vol = 100;
       start_buzzer(set_freq, set_vol, set_dur);
       set_led = map(current_pot, 0, 1023, 0, sizeof(highs)-1);
+      start_leds(set_led, 1000, 0, true);
       if (btn_pressed == true || btn_pressed_long == true) {
         res_freq = set_freq;
         int target;
@@ -382,7 +383,7 @@ void led_state() {
         fsm_led_state = LED_OFF;
         break;
       }
-      if (current_millis - fsm_led_timer_dut >= fsm_led_timeout_dut) {
+      if (fsm_led_timeout_dut > 0 && current_millis - fsm_led_timer_dut >= fsm_led_timeout_dut) {
         fsm_led_state = LED_BLINK;
         break;
       }
@@ -431,7 +432,7 @@ void led_state() {
       break;
 
     case LED_ONS_WAIT:
-      if (fsm_led_timer_dur > 0 && current_millis - fsm_led_timer_dur >= fsm_led_timeout_dur) {
+      if (fsm_led_timeout_dut > 0 && fsm_led_timer_dur > 0 && current_millis - fsm_led_timer_dur >= fsm_led_timeout_dur) {
         fsm_led_state = LED_OFF;
         break;
       }
