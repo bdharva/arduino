@@ -10,12 +10,11 @@ Updated: Monday, February 20, 2017
 
 #include "pitches.h"
 
-#define BUZ 2
+#define BUZ 6
 
-int melody[] = {G3, E4, C4};
+int melody[] = {G6, E7, C7};
 int durations[] = {4, 4, 2};
 int gaps[] = {5, 5, 3};
-int gap = 5;
 
 int i = 0;
 int j = 0;
@@ -42,7 +41,9 @@ void setup() {
   sei();
   
   set_duty_timer(melody[0]);
-  set_duration_timer(durations[0]);
+  //set_duration_timer(durations[0]);
+
+  Serial.begin(9600);
 
 }
 
@@ -55,23 +56,37 @@ ISR(TIMER0_COMPA_vect){
 }
 
 ISR(TIMER1_COMPA_vect){
-  if (j == 0) {
-    TCCR0B &= ~(1 << CS00);
-    TCCR0B &= ~(1 << CS01);
-    TCCR0B &= ~(1 << CS02);
-    set_duration_timer(gaps[i]);
-    j ++;
-  } else if ( j == 1 && i < (sizeof(melody)/sizeof(int)-1)) {
-    j = 2;
-    set_duration_timer(gaps[i]);
-    digitalWrite(13, LOW);
-  } else {
-    i = 0;
-    j = 0;
-    set_duty_timer(melody[i]);
-    set_duration_timer(durations[i]);
-    digitalWrite(13, HIGH);
+  
+  switch(j) {
+    
+    case 0:
+      j = 1;
+      TCCR0B &= ~(1 << CS00);
+      TCCR0B &= ~(1 << CS01);
+      TCCR0B &= ~(1 << CS02);
+      set_duration_timer(gaps[i]);
+      digitalWrite(13, LOW);
+      Serial.println(gaps[i]);
+      break;
+    
+    case 1:
+      j = 0;
+      if (i < (sizeof(melody)/sizeof(int)-1)) {
+        i ++;
+      } else {
+        i = 0;
+      }
+      set_duty_timer(melody[i]);
+      set_duration_timer(durations[i]);
+      digitalWrite(13, HIGH);
+      Serial.print(melody[i]);
+      Serial.print(", ");
+      Serial.print(durations[i]);
+      Serial.print("\n");
+      break;
+
   }
+  
 }
 
 void set_duty_timer (int frequency) {
