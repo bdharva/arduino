@@ -9,13 +9,13 @@ This code will allow a user to:
 
 Author: Benjamin D. Harvatine
 Started: Thursday, January 26, 2017
-Updated: Saturday, February 11, 2017
+Updated: Monday, February 20, 2017
 
 */
 
 // Debug Scaffolding
 
-#define DEBUG 1
+#define DEBUG 0
 
 // Pins
 
@@ -36,6 +36,7 @@ Updated: Saturday, February 11, 2017
 #define BUZ_LO 3
 #define BUZ_LO_WAIT 4
 
+#define BUZ_TIMEOUT_DUT OCR2A
 uint8_t fsm_buz_state = BUZ_OFF;
 uint16_t fsm_buz_timer_dut, fsm_buz_timer_dur, fsm_buz_timeout_dut, fsm_buz_timeout_dur;
 
@@ -102,7 +103,8 @@ int pitches[] = { 31,                                                       // B
 // Current properties to render
 
 unsigned long current_micros, current_millis;
-int current_pot, last_pot;
+int current_pot = 0;
+int last_pot = 0;
 int res_freq, set_freq, set_vol, set_dur, set_duty_on, set_duty_off;
 
 // Mapped pitches
@@ -133,11 +135,48 @@ void setup() {
   pinMode(BTN, INPUT);
   pinMode(BUZ, OUTPUT);
   pinMode(POT, INPUT);
+  pinMode(13, OUTPUT);
 
   #ifdef DEBUG
   Serial.begin(9600);
   #endif
 
+  cli();//stop interrupts
+  
+  //set timer1 interrupt at 1Hz
+  TCCR1A = 0;// set entire TCCR1A register to 0
+  TCCR1B = 0;// same for TCCR1B
+  TCNT1  = 0;//initialize counter value to 0
+  // set compare match register for 1hz increments
+  OCR1A = 15624;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+  // turn on CTC mode
+  TCCR1B |= (1 << WGM12);
+  // Set CS10 and CS12 bits for 1024 prescaler
+  TCCR1B |= (1 << CS12) | (1 << CS10);  
+  // enable timer compare interrupt
+  TIMSK1 |= (1 << OCIE1A);
+
+  sei();//allow interrupts
+  
+  start_buzzer(5000, 100, 1000);
+
+}
+
+ISR(TIMER1_COMPA_vect){
+  if (fsm_buz_state == 1) {
+    Serial.println("Low");
+    digitalWrite(13, LOW);
+    //OCR1A = 3124;
+    digitalWrite(BUZ, LOW);
+    fsm_buz_state = 0;
+  } else if (fsm_buz_state == 0) {
+    Serial.println("High");
+    digitalWrite(13, HIGH);
+    //OCR1A = 1000;
+    digitalWrite(BUZ, HIGH);
+    fsm_buz_state = 1;
+  }
+  //buzzer_state();
 }
 
 /*
@@ -148,34 +187,23 @@ and corresponding buzzer and LED states.
 
 void loop() {
 
-  current_micros = micros();
+  /*current_micros = micros();
   current_millis = millis();
-  /*current_pot = analogRead(POT);
-  button_state();
-  if (current_pot != last_pot || btn_pressed || btn_pressed_long) {
+  Serial.print("-----\n\nLoop Start: ");
+  Serial.print(micros());
+  Serial.print("us\n");
+  //current_pot = analogRead(POT);
+  //if (last_pot == 0) { current_pot = 1; }
+  //button_state();
+  if (current_pot != last_pot || btn_pressed == true || btn_pressed_long == true) {
     ui_state();
   }
   buzzer_state();
-  last_pot = current_pot;*/
-  for (int i = 0; i < sizeof(pitches); i++) {
-    #ifdef DEBUG
-    Serial.println(pitches[i]);
-    #endif
-    int frequency = map(pitches[i], 0, 1023, 2, 10);
-    float period = 1000/2*frequency; // Gives on/off period in microseconds
-    float duty_on = period/2;
-    float duty_off = period/2;
-
-    for (int j = 0; j < 200; j++) {
-      analogWrite(BUZ, 255);
-      delayMicroseconds(duty_on);
-      analogWrite(BUZ, 0);
-      delayMicroseconds(duty_off);
-    }
-    delay(200);
-    
-  }
-
+  last_pot = current_pot;
+  Serial.print("Loop End: ");
+  Serial.print(micros());
+  Serial.print("us\n");*/
+  
 }
 
 /*
@@ -186,10 +214,22 @@ Takes arguments for frequency, volume, and duration
 void start_buzzer(int target_freq, int target_vol, int target_dur) {
 
   int period = 500000/target_freq; // period in us
-  set_duty_on = period*(target_vol/100);
-  set_duty_off = period*(2-(target_vol/100));
+  set_duty_on = period/2*(target_vol/100);
+  set_duty_off = period/2*(2-(target_vol/100));
+  set_freq = target_freq;
   fsm_buz_state = BUZ_HI;
-  fsm_buz_timer_dur = current_micros;
+  fsm_buz_timer_dur = current_millis;
+  fsm_buz_timeout_dur = target_dur;
+  #ifdef DEBUG
+    Serial.println("Starting buzzer...");
+    Serial.print("Frequency: ");
+    Serial.print(target_freq);
+    Serial.print("Hz\nVolume: ");
+    Serial.print(target_vol);
+    Serial.print("%\nDuration: ");
+    Serial.print(target_dur);
+    Serial.print("ms\n");
+  #endif
 
 }
 
@@ -262,7 +302,7 @@ void ui_state() {
     case UI_RES_FREQ:
       set_freq = map(current_pot, 0, 1023, 0, 1000*(sizeof(highs)-1));
       set_vol = 100;
-      start_buzzer(set_freq, set_vol, set_dur);
+      //start_buzzer(set_freq, set_vol, set_dur);
       set_led = map(current_pot, 0, 1023, 0, sizeof(highs)-1);
       start_leds(set_led, 1000, 0, true);
       if (btn_pressed == true || btn_pressed_long == true) {
@@ -287,7 +327,7 @@ void ui_state() {
     case UI_PITCH_1:
       set_freq = map(current_pot, 0, 1023, 0, sizeof(highs)-1);
       set_freq = pitch_range[set_freq];
-      start_buzzer(set_freq, set_vol, set_dur);
+      //start_buzzer(set_freq, set_vol, set_dur);
       if(btn_pressed == true || btn_pressed_long == true) {
         pitch_1 = pitch_range[set_freq];
         fsm_ui_state = UI_VOLUME_1;
@@ -313,64 +353,89 @@ void ui_state() {
 
 void buzzer_state() {
 
-  fsm_buz_timeout_dur = set_dur;
+  #ifdef DEBUG
+  Serial.print(fsm_buz_timer_dut);
+  Serial.print("/");
+  Serial.print(fsm_buz_timeout_dut);
+  Serial.print("us at ");
+  Serial.print(micros());
+  Serial.print("us\n");
+  #endif
 
   switch (fsm_buz_state) {
-
+    
     case BUZ_OFF:
-      fsm_buz_timer_dut = fsm_buz_timer_dur = fsm_buz_timeout_dut = fsm_buz_timeout_dur = 0;
+      //fsm_buz_timer_dut = fsm_buz_timer_dur = fsm_buz_timeout_dut = fsm_buz_timeout_dur = 0;
       analogWrite(BUZ, 0);
       break;
 
     case BUZ_HI:
-      fsm_buz_timer_dut = current_micros;
-      fsm_buz_timeout_dut = set_duty_on;
-      if (fsm_buz_timer_dur > 0 && current_micros - fsm_buz_timer_dur >= fsm_buz_timeout_dur) {
+      //fsm_buz_timer_dut = current_micros;
+      //fsm_buz_timeout_dut = set_duty_on;
+      /*if (fsm_buz_timeout_dur > 0 && current_millis - fsm_buz_timer_dur >= fsm_buz_timeout_dur) {
         fsm_buz_timer_dur = 0;
         fsm_buz_state = BUZ_OFF;
+        #ifdef DEBUG
+        Serial.println("BUZ_OFF...");
+        #endif
         break;
-      }
+      }*/
       analogWrite(BUZ, 255);
-      fsm_buz_state = BUZ_HI_WAIT;
       break;
 
-    case BUZ_HI_WAIT:
-      if (fsm_buz_timer_dur > 0 && current_micros - fsm_buz_timer_dur >= fsm_buz_timeout_dur) {
+    /*case BUZ_HI_WAIT:
+      if (fsm_buz_timeout_dur > 0 && current_millis - fsm_buz_timer_dur >= fsm_buz_timeout_dur) {
         fsm_buz_timer_dur = 0;
         fsm_buz_state = BUZ_OFF;
+        #ifdef DEBUG
+        Serial.println("BUZ_OFF...");
+        #endif
         break;
       }
       if (current_micros - fsm_buz_timer_dut >= fsm_buz_timeout_dut) {
         fsm_buz_timer_dut = 0;
         fsm_buz_state = BUZ_LO;
+        #ifdef DEBUG
+        Serial.println(current_micros - fsm_buz_timer_dut);
+        Serial.println("BUZ_LO...");
+        #endif
         break;
       }
-      break;
+      break;*/
 
     case BUZ_LO:
-      fsm_buz_timer_dut = current_micros;
-      fsm_buz_timeout_dut = set_duty_off;
-      if (fsm_buz_timer_dur > 0 && current_micros - fsm_buz_timer_dur >= fsm_buz_timeout_dur) {
+      //fsm_buz_timer_dut = current_micros;
+      //fsm_buz_timeout_dut = set_duty_off;
+      /*if (fsm_buz_timeout_dur > 0 && current_millis - fsm_buz_timer_dur >= fsm_buz_timeout_dur) {
         fsm_buz_timer_dur = 0;
         fsm_buz_state = BUZ_OFF;
+        #ifdef DEBUG
+        Serial.println("BUZ_OFF...");
+        #endif
         break;
-      }
+      }*/
       analogWrite(BUZ, 0);
-      fsm_buz_state = BUZ_LO_WAIT;
       break;
 
-    case BUZ_LO_WAIT:
-      if (fsm_buz_timer_dur > 0 && current_micros - fsm_buz_timer_dur >= fsm_buz_timeout_dur) {
+    /*case BUZ_LO_WAIT:
+      if (fsm_buz_timeout_dur > 0 && current_millis - fsm_buz_timer_dur >= fsm_buz_timeout_dur) {
         fsm_buz_timer_dur = 0;
         fsm_buz_state = BUZ_OFF;
+        #ifdef DEBUG
+        Serial.println("BUZ_OFF...");
+        #endif
         break;
       }
       if (current_micros - fsm_buz_timer_dut >= fsm_buz_timeout_dut) {
         fsm_buz_timer_dut = 0;
         fsm_buz_state = BUZ_HI;
+        #ifdef DEBUG
+        Serial.println(current_micros - fsm_buz_timer_dut);
+        Serial.println("BUZ_HI...");
+        #endif
         break;
       }
-      break;
+      break;*/
   }
 
 }
