@@ -1,4 +1,5 @@
 #define BUZ 10
+#define NOTE 16*150
 
 int pitches[] = {
   33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62,                           // C1 to B1
@@ -12,123 +13,161 @@ int pitches[] = {
 
 String notes[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
-int a, b, c, d, e, f;
-String input_string = "";
+const byte num_chars = 32;
+char input_string[num_chars];
 boolean string_complete = false;
+
+char command[32] = {0};
+int gap = 0;
+int octave = 0;
+int tones[32] = {0};
+int durations[32] = {0};
 boolean play_notes = false;
 
 void setup() {
-  Serial.begin(9600);
-  Serial.println("Welcome to the piezo tool!");
-  Serial.println("Create compositions with the following format:");
-  Serial.println("[Octave],[Note],[Length],[Octave],[Note],[Length]");
-  Serial.println("Octave is valid from 0 to 6, with 3 corresponding the the 4th (middle) octave.");
-  Serial.println("Note is valid from 0 to 11 as follows:");
-  for(int i = 0; i < (sizeof(notes)/sizeof(String)); i++){
-    if (i > 0) { Serial.print(", "); }
-    Serial.print(notes[i]);
-    Serial.print(":");
-    Serial.print(i);
-  }
-  Serial.print("\n");
-  Serial.println("Length determines the note as follows: a length of 8 makes a 1/8 note, 4 makes 1/4 note, etc.");
-  Serial.println("------");
-  input_string.reserve(200);
-  // Fur Elise
-  //int melody[] = { pitches[52], pitches[51], pitches[52], pitches[51], pitches[52], pitches[47], pitches[50], pitches[48], pitches[45] };
-  //int durations[] = { 6, 6, 6, 6, 6, 6, 6, 6, 6 };
-  // NBC chimes
-  int melody[] = { pitches[55], pitches[64], pitches[60] };
-  int durations[] = { 4, 4, 2 };
-  for (int this_note = 0; this_note < (sizeof(melody)/sizeof(int)); this_note++) {
-    int duration = 1000 / durations[this_note];
-    tone(BUZ, melody[this_note], duration);
-    int pause = duration * 1.30;
-    delay(pause);
-    noTone(BUZ);
-  }
+ Serial.begin(9600);
+ Serial.println("Welcome to the Piezo Tool (try 'help' for a list of commands)...\n");
+ parse_input();
 }
+
 
 void loop() {
   if (string_complete) {
-    parse_input(input_string);
-    input_string = "";
+    parse_input();
+    
     string_complete = false;
-    play_notes = true;
   }
   if (play_notes == true) {
-    int melody[] = {pitches[12*a+b], pitches[12*d+e]};
-    int durations[] = {c, f};
-    for (int this_note = 0; this_note < (sizeof(melody)/sizeof(int)); this_note++) {
-      int duration = 1000 / durations[this_note];
-      tone(BUZ, melody[this_note], duration);
-      int pause = duration * 1.30;
-      delay(pause);
-      noTone(BUZ);
+    for (int this_note = 0; this_note < (sizeof(tones)/sizeof(int)); this_note++) {
+      if (durations[this_note] > 0) {
+        int duration = NOTE / durations[this_note];
+        tone(BUZ, pitches[(octave-1)*12+tones[this_note]], duration);
+        int pause = duration*1.3;
+        delay(pause);
+        noTone(BUZ);
+      } else {
+        break;
+      }
     }
-    delay(1000);
+    delay(gap);
   }
 }
 
-void parse_input(String inputs) {
-  Serial.print("Input: ");
-  Serial.print(inputs);
-  Serial.print("\n");
-  if (sscanf(inputs.c_str(), "%d,%d,%d,%d,%d,%d", &a, &b, &c, &d, &e, &f) == 6) {
-    Serial.print("Note 1: ");
-    Serial.print(notes[b]);
-    Serial.print(a+1);
-    Serial.print(", 1/");
-    Serial.print(c);
-    Serial.print(" note");
+ 
+void parse_input() {
+  char *token = strtok(input_string, ",");
+  strcpy(command, token);
+  if (String(command) == "gap") {
+    token = strtok(NULL, ",");
+    gap = atoi(token);
+  } else if (String(command) == "octave") {
+    token = strtok(NULL, ",");
+    octave = atoi(token);
+  } else if (String(command) == "stats") {
+    print_input();
+  } else if (String(command) == "start") {
+    play_notes = true;
+  } else if (String(command) == "stop") {
+    play_notes = false;
+  } else if (String(command) == "help") {
+    Serial.println("\nList of commands:");
+    Serial.println("\n  gap: \t'gap,x' where x is an integer with units of milliseconds");
+    Serial.println("\n  octave: \t'octave,x' where x is an integer 1-7");
+    Serial.print("\n  notes: \t'notes,a,x,a,x,...' where 'a' represents a musical note and 'x' represents the note size");
+    Serial.print("\n\tas follows: a length of 8 makes a 1/8 note, 4 makes 1/4 note, etc. Valid musical notes ");
+    Serial.print("\n\tare: ");
+    for(int i = 0; i < (sizeof(notes)/sizeof(String)); i++){
+      if (i > 0) { Serial.print(", "); }
+      Serial.print(notes[i]);
+    }
     Serial.print("\n");
-    Serial.print("Note 2: ");
-    Serial.print(notes[e]);
-    Serial.print(d+1);
-    Serial.print(", 1/");
-    Serial.print(f);
-    Serial.print(" note");
-    Serial.print("\n");
-  }
-  /*
-  //http://arduino.stackexchange.com/questions/1013/how-do-i-split-an-incoming-string/1237
-  // Calculate based on max input size expected for one command
-  #define INPUT_SIZE 30
-  ...
-
-  // Get next command from Serial (add 1 for final 0)
-  char input[INPUT_SIZE + 1];
-  byte size = Serial.readBytes(input, INPUT_SIZE);
-  // Add the final 0 to end the C string
-  input[size] = 0;
-
-  // Read each command pair
-  char* command = strtok(input, "&");
-  while (command != 0)
-  {
-      // Split the command in two values
-      char* separator = strchr(command, ':');
-      if (separator != 0)
-      {
-          // Actually split the string in 2: replace ':' with 0
-          *separator = 0;
-          int servoId = atoi(command);
-          ++separator;
-          int position = atoi(separator);
-
-          // Do something with servoId and position
+    Serial.println("\n  start: \t'start' to start playing sounds");
+    Serial.println("\n  stats: \t'stats' to view all currently defined paramters");
+    Serial.println("\n  stop: \t'stop' to stop playing sounds");
+  } else if (String(command) == "notes") {
+    token = strtok(NULL, ",");
+    int index = 0;
+    for(int i = 0; i < sizeof(tones)/sizeof(int); i++){
+      tones[i] = 0;
+    }
+    for(int i = 0; i < sizeof(durations)/sizeof(int); i++){
+      durations[i] = 0;
+    }
+    while (token != NULL) {
+      if (index % 2 == 0) {
+        int target = 0;
+        for (int i=0; i < sizeof(notes)/sizeof(String); i++) {
+          String str = String(token);
+          str.toUpperCase();
+          if (notes[i] == str) {
+            target = i;
+            break;
+          }
+        }
+        tones[index/2] = target;
+      } else {
+        durations[(index-1)/2] = atoi(token);
       }
-      // Find the next command in input string
-      command = strtok(0, "&");
-  }*/
+      index ++;
+      token = strtok(NULL, ",");
+    }
+  }
+  for(int i = 0; i < sizeof(input_string); i++ ){
+    input_string[i] = "\0";
+  }
+}
+
+void print_input() {
+  Serial.print("\n  Gap: \t");
+  Serial.print(gap); 
+  Serial.println("ms");
+  Serial.print("\n  Octave: \t");
+  Serial.print(octave);
+  if (octave == 1) {
+    Serial.print("st ");
+  } else if (octave == 2) {
+    Serial.print("nd ");
+  } else if (octave == 3) {
+    Serial.print("rd ");
+  } else {
+    Serial.print("th ");
+  }
+  Serial.println("octave");
+  Serial.print("\n  Notes: ");
+  for(int i = 0; i < sizeof(tones)/sizeof(int); i++){
+    if(durations[i] != 0) {
+      Serial.print("\t");
+      Serial.print(notes[tones[i]]);
+      Serial.print(", ");
+      Serial.print("1/");
+      Serial.print(durations[i]);
+      Serial.println(" note");
+    } else {
+      if (i == 0) {
+        Serial.println("\tNo notes defined.");
+      }
+      break;
+    }
+  }
 }
 
 void serialEvent() {
+  static byte index = 0;
+  char input_char;
   while (Serial.available() && string_complete == false) {
-    char input_char = (char)Serial.read();
-    input_string += input_char;
+    input_char = Serial.read();
     if (input_char == '\n') {
+      input_string[index] = '\0';
+      index = 0;
+      Serial.print("\n> ");
+      Serial.println(input_string);
       string_complete = true;
+    } else {
+      input_string[index] = input_char;
+      index++;
+      if (index >= num_chars) {
+        index = num_chars - 1;
+      }
     }
   }
 }
